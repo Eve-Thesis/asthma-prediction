@@ -1,0 +1,11 @@
+*.idea
+/prediction/data/data_0124_only_asthma.csv
+/prediction/data/audio_0124_health.pk
+/prediction/data/audio_0124_cough_users.pk
+/prediction/data/audio_0124_cough.pk
+/prediction/data/tensorboard/
+/prediction/data/train/
+/prediction/image_model/images/
+/prediction/image_model/logs/
+/prediction/vggish/vggish_model.ckpt
+/prediction/data/data_params.py
