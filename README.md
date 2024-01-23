@@ -22,6 +22,9 @@ To set up the project data, you need to add a few files that are not included in
     - Add a file containing recordings of samples for training the model.
     - Set the path to this file in the `DATA_SAMPLES` variable in the `data_params.py` file.
 
+4. **vggish_model.ckpt**
+    - Add the file with weights for the [VGGish](https://github.com/tensorflow/models/tree/master/research/audioset/vggish) model to the 'prediction/vggish' folder.
+
 ## Data Source
 
 This project was developed using data from the University of Cambridge (project on COVID-19 diagnosis using cough, breath, and speech recordings). You can find the repository [here](https://github.com/cam-mobsys/covid19-sounds-neurips).
