@@ -35,7 +35,6 @@ lr_decay = [0.8]
 num_units = [64, 128]
 model_name = ['resnet', 'densenet']
 
-# Kombinacje parametrów
 param_combinations = itertools.product(lr_base, lr_decay, reg_l2, dropout_rate, num_units, trained_layers, model_name)
 
 for params in param_combinations:
@@ -45,5 +44,5 @@ for params in param_combinations:
                f"--dropout_rate={params[3]}",
                f"--num_units={params[4]}",
                f"--trained_layers={params[5]}",
-               f"--model_name={params[6]}"]
+               f"--model_type={params[6]}"]
     subprocess.run(command)

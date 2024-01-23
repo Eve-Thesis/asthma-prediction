@@ -1,4 +1,6 @@
 import logging.config
+import os
+
 import numpy as np
 import tensorflow as tf
 import datetime
@@ -26,6 +28,23 @@ train_log_dir = 'logs/gradient_tape/' + current_time + '/train'
 test_log_dir = 'logs/gradient_tape/' + current_time + '/test'
 train_summary_writer = tf.summary.create_file_writer(train_log_dir)
 test_summary_writer = tf.summary.create_file_writer(test_log_dir)
+
+
+def break_training(model, parameters=None):
+    # Break training if necessary
+    if os.path.exists("stop.flag"):
+        print("\nIteration interrupted on request. Model:")
+        print(model.summary())
+        if parameters:
+            print(parameters)
+        while True:
+            response = input("Do you want to break training? (y/n): ")
+            if response == "y":
+                return True
+            elif response == "n":
+                os.remove("stop.flag")
+                return False
+    return False
 
 
 def calculate_metrics(y_true, y_pred):
@@ -133,6 +152,9 @@ def train(model, train_data, val_data, epochs=100, start_epoch=0, patience=15, m
     curr_step = 0
     rng = np.random.default_rng()
     for epoch in range(epochs - start_epoch):
+        # Break training if necessary
+        if break_training(model, save_checkpoint_file):
+            return
         # Shuffle train_data in each epoch
         rng.shuffle(train_data, axis=0)
         logger.info(f"\nEpoch: {epoch + start_epoch}")
@@ -144,13 +166,6 @@ def train(model, train_data, val_data, epochs=100, start_epoch=0, patience=15, m
         _, tpr, tnr, _, _ = evaluate_model(model, val_data, training=False,
                                            metrics_file=metrics_file, epoch=epoch + start_epoch)
 
-        # Save model weights.
-        # if save_checkpoint_file:
-        #     current_val_tpr_tnr = 0.5 * (tpr + tnr)
-        #     if current_val_tpr_tnr > best_val_tpr_tnr:
-        #         logger.info("Validation TPR/TNR improved. Saving best weights.")
-        #         best_val_tpr_tnr = current_val_tpr_tnr
-        #         model.save_weights(save_checkpoint_file)
         # Early stopping.
         # if early_stopping:
         #     early_stopping.on_epoch_end(epoch, logs={'val_tpr_tnr': 0.5 * (tpr + tnr)})
@@ -159,26 +174,27 @@ def train(model, train_data, val_data, epochs=100, start_epoch=0, patience=15, m
         #         break
 
         # Early stopping and save model weights.
-        curr_val_tpr_tnr = 0.5 * (tpr + tnr)
-        if best_val_tpr_tnr <= curr_val_tpr_tnr:
-            if tpr > 0.5 and tnr > 0.5:
-                curr_step = 0
-                if best_val_tpr_tnr < curr_val_tpr_tnr:
-                    # Save the model weights to disk:
-                    logger.info("Validation TPR/TNR improved. Saving best weights.")
-                    model.save_weights(save_checkpoint_file)
-                    best_val_tpr_tnr = curr_val_tpr_tnr
+        if early_stopping:
+            curr_val_tpr_tnr = 0.5 * (tpr + tnr)
+            if best_val_tpr_tnr <= curr_val_tpr_tnr:
+                if tpr > 0.5 and tnr > 0.5:
+                    curr_step = 0
+                    if best_val_tpr_tnr < curr_val_tpr_tnr:
+                        # Save the model weights to disk:
+                        logger.info("Validation TPR/TNR improved. Saving best weights.")
+                        model.save_weights(save_checkpoint_file)
+                        best_val_tpr_tnr = curr_val_tpr_tnr
+                else:
+                    curr_step += 1
+                    if best_val_tpr_tnr < curr_val_tpr_tnr:
+                        curr_step = 0
+                        best_val_tpr_tnr = curr_val_tpr_tnr
             else:
                 curr_step += 1
-                if best_val_tpr_tnr < curr_val_tpr_tnr:
-                    curr_step = 0
-                    best_val_tpr_tnr = curr_val_tpr_tnr
-        else:
-            curr_step += 1
 
-        if curr_step >= patience:
-            print("Early Stop! (Train)")
-            break
+            if curr_step >= patience:
+                print("Early Stop! (Train)")
+                break
 
         # Reset metrics every epoch
         train_loss.reset_states()

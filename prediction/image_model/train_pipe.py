@@ -61,7 +61,7 @@ name_pre = f"Drp{FLAGS['dropout_rate']}_Uni{FLAGS['num_units']}_L2{FLAGS['reg_l2
 name_mid = f"DC{FLAGS['lr_decay']}_LR{FLAGS['lr_base']}_{FLAGS['lr_top']}"
 name_pos = f"Aug{FLAGS['is_aug']}"
 name_all = f"{name_pre}__{name_mid}__{name_pos}__"
-print("save:", name_all)
+logger.info(f"model: {FLAGS['model_type']}\nsave: {name_all}")
 logfile = os.path.join(str(audio_ckpt_dir), f"{name_all}_log.txt")
 checkpoint_path = os.path.join(str(audio_ckpt_dir), f"{name_all}{params.AUDIO_CHECKPOINT_NAME}")
 util.maybe_create_directory(audio_ckpt_dir)
@@ -131,11 +131,14 @@ model.compile(
              'categorical_crossentropy']
 )
 
-logger.info(model.compiled_metrics._metrics)
+# logger.info(model.compiled_metrics._metrics)
 # Train the new last layers for few epochs - for the model to converge on the new data
 logger.info("Train the new last layers")
+logger.info(f'Model layers: {len(model.layers)}')
+logger.info(f'Base model layers: {len(base_model.layers)}')
+logger.info(f'Model trainable variables - before fine-tune: {len(model.trainable_variables)}')
+logger.info(f'Base model trainable variables - before fine-tune: {len(base_model.trainable_variables)}')
 train(model, train_dataset, val_dataset, epochs=before_finetune_epochs, metrics_file=logfile,
-      early_stopping=early_stopping,
       save_checkpoint_file=checkpoint_path)
 
 # Unfreeze the base_model. Note that it keeps running in inference mode
@@ -143,10 +146,6 @@ train(model, train_dataset, val_dataset, epochs=before_finetune_epochs, metrics_
 # the batchnorm layers will not update their batch statistics.
 # This prevents the batchnorm layers from undoing all the training
 # we've done so far.
-logger.info(f'Model layers: {len(model.layers)}')
-logger.info(f'Base model layers: {len(base_model.layers)}')
-logger.info(f'Model trainable variables - before fine-tune: {len(model.trainable_variables)}')
-logger.info(f'Base model trainable variables - before fine-tune: {len(base_model.trainable_variables)}')
 base_model.trainable = True
 fine_tune_at = len(base_model.layers) - num_finetune_layers
 for layer in base_model.layers[:fine_tune_at]:
@@ -163,7 +162,7 @@ model.summary(show_trainable=True)
 
 logger.info("Fitting the end-to-end model")
 train(model, train_dataset, val_dataset, epochs=max_epochs, start_epoch=before_finetune_epochs, metrics_file=logfile,
-      early_stopping=early_stopping,
+      early_stopping=True,
       save_checkpoint_file=checkpoint_path)
 
 logger.info("END OF TRAINING")
