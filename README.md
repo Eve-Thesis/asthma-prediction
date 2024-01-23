@@ -6,7 +6,7 @@ Asthma prediction based on breathing sound using three pre-trained convolutional
 
 To set up the project data, you need to add a few files that are not included in the repository due to size or confidentiality reasons. Below is a list of these files and instructions on how to add them:
 
-1. **data_params.py.temp**
+1. **data_params.py.temp** (in prediction/data/)
     - This file contains two parameters: `CSV_DATA_SAMPLES` and `DATA_SAMPLES`.
     - Modify the file name to `data_params.py`, removing `.temp` at the end.
 
