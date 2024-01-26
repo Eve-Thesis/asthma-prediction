@@ -1,8 +1,6 @@
 *.idea
-/prediction/data/data_0124_only_asthma.csv
-/prediction/data/audio_0124_health.pk
-/prediction/data/audio_0124_cough_users.pk
-/prediction/data/audio_0124_cough.pk
+/prediction/data/**/*.csv
+/prediction/data/**/*.pk
 /prediction/data/tensorboard/
 /prediction/data/train/
 /prediction/image_model/images/

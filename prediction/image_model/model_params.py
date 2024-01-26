@@ -19,12 +19,12 @@ LR_TOP = 0.001
 LEARNING_RATE_DECAY = 0.98
 SR_VGG = 16000
 EARLY_STOP = "AUC"
-SAMPLES_COUNT = 2500  # 4774 - all samples (1:1 - classes proportion)
+SAMPLES_COUNT = 1364  # 4774 # 1364 - without symptoms; all samples (1:1 - classes proportion)
 
 # Architectural constants.
 EMBEDDING_SIZE = 128  # Size of embedding layer.
 NUM_CLASSES = 2
-TRAINED_LAYERS = 20  # all layers: ResNet50: 175, DenseNet: 427
+TRAINED_LAYERS = 20  # all layers: ResNet50: 175, DenseNet121: 427
 
 INIT_STDDEV = 0.01  # Standard deviation used to initialize weights.
 LEARNING_RATE = 1e-5  # Learning rate for the Adam optimizer.

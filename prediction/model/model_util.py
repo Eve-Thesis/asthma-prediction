@@ -297,9 +297,9 @@ def load_test_dict_data(data_path):
 def get_input(sample):
     """transfer audio input into spectrogram."""
     vgg_b = waveform_to_examples(sample["breath"], SR_VGG)
-    index = vgg_b.shape[0]
+    # index = vgg_b.shape[0]
     labels = sample["label"]
-    return vgg_b, [[index]], labels
+    return vgg_b, labels
 
 
 def get_metrics(probs, labels):
@@ -339,7 +339,7 @@ def get_metrics(probs, labels):
     TNR = TN / (TN + FP)
 
     # F1-score
-    # f1_score = (2 * precision * recall) / (precision + recall)
+    f1_score = (2 * precision * recall) / (precision + recall)
 
     # PPV = TP/(TP + FP)
     # NPV = TN/(TN + FN)
@@ -350,6 +350,8 @@ def get_metrics(probs, labels):
     print(
         "AUC:"
         + "{:.2f}".format(auc)
+        + " f1-score_0.5:"
+        + "{:.2f}".format(f1_score[len(f1_score)//2])
         + " Sensitivity:"
         + "{:.2f}".format(TPR)
         + " Specificity:"
@@ -358,7 +360,7 @@ def get_metrics(probs, labels):
         + "{:.2f}".format(1 - fpr[index])
     )
 
-    return auc, TPR, TNR, 1 - fpr[index]
+    return f1_score[len(f1_score)//2], auc, TPR, TNR, 1 - fpr[index]
 
 
 def get_metrics_t(probs, label):

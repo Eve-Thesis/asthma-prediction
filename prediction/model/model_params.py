@@ -20,7 +20,7 @@ LEARNING_RATE_DECAY = 0.98
 SR_VGG = 16000  # VGG pretrained model sample rate
 EARLY_STOP = "AUC"
 VGGISH_CNT_TRAINABLE = 18
-SAMPLES_COUNT = 2500  # 4774
+SAMPLES_COUNT = None  # 4774 # 1364 - without symptoms; all samples (1:1 - classes proportion)
 
 # Architectural consants.
 EMBEDDING_SIZE = 128  # Size of embedding layer.

@@ -53,13 +53,13 @@ def define_audio_slim(
             weights_regularizer=tf.keras.regularizers.l2(0.5 * (reg_l2)),
     ), tf.compat.v1.variable_scope("mymodel"):
 
-        index = tf.compat.v1.placeholder(dtype=tf.int32, shape=(1, 1), name="index")  # split B C V
+        # index = tf.compat.v1.placeholder(dtype=tf.int32, shape=(1, 1), name="index")  # split B C V
         # index2 = tf.compat.v1.placeholder(dtype=tf.int32, shape=(1, 1), name="index2")
         dropout_keep_prob = tf.compat.v1.placeholder(tf.float32, name="dropout_rate")
 
         with tf.compat.v1.name_scope("Breath"):
-            fc_vgg_breath = embeddings[0: index[0, 0], :]  # (len, 128)
-            fc1_b = tf.reduce_mean(input_tensor=fc_vgg_breath, axis=0)
+            # fc_vgg_breath = embeddings[0: index[0, 0], :]  # (len, 128)
+            fc1_b = tf.reduce_mean(input_tensor=embeddings, axis=0)
             fc2_b = tf.reshape(fc1_b, (-1, 128), name="vgg_b")
 
         with tf.compat.v1.name_scope("Output"):

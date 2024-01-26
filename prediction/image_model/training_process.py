@@ -4,6 +4,7 @@ import os
 import numpy as np
 import tensorflow as tf
 import datetime
+from pathlib import Path
 
 from sklearn.metrics import confusion_matrix, roc_auc_score
 
@@ -19,15 +20,11 @@ train_accuracy = tf.keras.metrics.CategoricalAccuracy('train_accuracy')
 
 test_loss = tf.keras.metrics.CategoricalCrossentropy('test_loss')
 test_accuracy = tf.keras.metrics.CategoricalAccuracy('test_accuracy')
+
+
 # test_auc = tf.keras.metrics.AUC('test_AUC')
 # test_precision = tf.keras.metrics.Precision('test_precision')
 # test_recall = tf.keras.metrics.Precision('test_recall')
-
-current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-train_log_dir = 'logs/gradient_tape/' + current_time + '/train'
-test_log_dir = 'logs/gradient_tape/' + current_time + '/test'
-train_summary_writer = tf.summary.create_file_writer(train_log_dir)
-test_summary_writer = tf.summary.create_file_writer(test_log_dir)
 
 
 def break_training(model, parameters=None):
@@ -85,7 +82,7 @@ def test_step(model, x_test, y_test):
     return loss, predictions
 
 
-def evaluate_model(model, data, training=False, metrics_file=None, epoch=None):
+def evaluate_model(model, data, training=False, metrics_file=None, epoch=None, summary_writer=None):
     all_predicted = []
     all_labels = []
     all_loss = []
@@ -110,32 +107,34 @@ def evaluate_model(model, data, training=False, metrics_file=None, epoch=None):
 
     tpr, tnr, f1, auc = calculate_metrics(np.argmax(all_labels, axis=1), np.argmax(all_predicted, axis=1))
     sample_loss = sum(all_loss) / len(all_loss)
+    accuracy = train_accuracy.result() if training else test_accuracy.result()
+    loss = train_loss.result() if training else test_loss.result()
     # sample_accuracy = sum(all_accuracy) / len(all_accuracy)
 
     # print(f"{model.optimizer._decayed_lr('float32').numpy():.11f}")
     # print(f"{model.optimizer.lr(model.optimizer.iterations):.11f}")
-    if training:
-        with train_summary_writer.as_default():
-            tf.summary.scalar('loss', train_loss.result(), step=epoch)
-            tf.summary.scalar('accuracy', train_accuracy.result(), step=epoch)
+    if summary_writer:
+        with summary_writer.as_default():
+            tf.summary.scalar('loss', loss, step=epoch)
+            tf.summary.scalar('accuracy', accuracy, step=epoch)
             tf.summary.scalar('TPR', tpr, step=epoch)
             tf.summary.scalar('TNR', tnr, step=epoch)
             tf.summary.scalar('F1-score', f1, step=epoch)
             tf.summary.scalar('AUC', auc, step=epoch)
-            tf.summary.scalar('base_LR', model.optimizer.optimizer_specs[0]['optimizer'].lr(
-                model.optimizer.optimizer_specs[0]['optimizer'].iterations), step=epoch)
-            tf.summary.scalar('top_LR', model.optimizer.optimizer_specs[1]['optimizer'].lr(
-                model.optimizer.optimizer_specs[1]['optimizer'].iterations), step=epoch)
-    else:
-        with test_summary_writer.as_default():
-            tf.summary.scalar('loss', test_loss.result(), step=epoch)
-            tf.summary.scalar('accuracy', test_accuracy.result(), step=epoch)
-            tf.summary.scalar('TPR', tpr, step=epoch)
-            tf.summary.scalar('TNR', tnr, step=epoch)
-            tf.summary.scalar('F1-score', f1, step=epoch)
-            tf.summary.scalar('AUC', auc, step=epoch)
+            # tf.summary.scalar('base_LR', model.optimizer.optimizer_specs[0]['optimizer'].lr(
+            #     model.optimizer.optimizer_specs[0]['optimizer'].iterations), step=epoch)
+            # tf.summary.scalar('top_LR', model.optimizer.optimizer_specs[1]['optimizer'].lr(
+            #     model.optimizer.optimizer_specs[1]['optimizer'].iterations), step=epoch)
+    # else:
+    #     with test_summary_writer.as_default():
+    #         tf.summary.scalar('loss', test_loss.result(), step=epoch)
+    #         tf.summary.scalar('accuracy', test_accuracy.result(), step=epoch)
+    #         tf.summary.scalar('TPR', tpr, step=epoch)
+    #         tf.summary.scalar('TNR', tnr, step=epoch)
+    #         tf.summary.scalar('F1-score', f1, step=epoch)
+    #         tf.summary.scalar('AUC', auc, step=epoch)
 
-    metrics_info = (f"Accuracy: {train_accuracy.result()}, Loss: {sample_loss:.2f}, "
+    metrics_info = (f"Accuracy: {accuracy}, Loss: {sample_loss:.2f}, "
                     f"TPR: {tpr:.2f}, TNR: {tnr:.2f}, f1: {f1:.2f}, AUC: {auc:.2f}")
     logger.info(metrics_info)
     if metrics_file:
@@ -148,6 +147,12 @@ def evaluate_model(model, data, training=False, metrics_file=None, epoch=None):
 
 def train(model, train_data, val_data, epochs=100, start_epoch=0, patience=15, metrics_file=None, early_stopping=None,
           save_checkpoint_file=None, load_checkpoint_file=None, batch_size=1):
+    current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    train_log_dir = 'logs/gradient_tape/' + Path(metrics_file).stem + current_time + '/train'
+    test_log_dir = 'logs/gradient_tape/' + Path(metrics_file).stem + current_time + '/test'
+    train_summary_writer = tf.summary.create_file_writer(train_log_dir)
+    test_summary_writer = tf.summary.create_file_writer(test_log_dir)
+
     best_val_tpr_tnr = 0.0  # 0.5 * (tpr + tnr)
     curr_step = 0
     rng = np.random.default_rng()
@@ -160,11 +165,14 @@ def train(model, train_data, val_data, epochs=100, start_epoch=0, patience=15, m
         logger.info(f"\nEpoch: {epoch + start_epoch}")
         # Training.
         logger.info("Training")
-        evaluate_model(model, train_data, training=True, metrics_file=metrics_file, epoch=epoch + start_epoch)
+        evaluate_model(model, train_data, training=True,
+                       metrics_file=metrics_file, epoch=epoch + start_epoch,
+                       summary_writer=train_summary_writer)
         # Validation.
         logger.info("Validation")
         _, tpr, tnr, _, _ = evaluate_model(model, val_data, training=False,
-                                           metrics_file=metrics_file, epoch=epoch + start_epoch)
+                                           metrics_file=metrics_file, epoch=epoch + start_epoch,
+                                           summary_writer=test_summary_writer)
 
         # Early stopping.
         # if early_stopping:

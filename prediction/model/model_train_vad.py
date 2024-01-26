@@ -8,6 +8,7 @@ Created on Wed OCt 9 17:18:28 2020
 from __future__ import print_function
 
 import argparse
+import datetime
 import os
 import random
 import sys
@@ -91,12 +92,19 @@ name_pre = (
         + str(FLAGS["trained_layers"])
 )
 name_mid = "DC" + str(FLAGS["lr_decay"]) + "_" + "LR" + str(FLAGS["lr1"]) + "_" + str(FLAGS["lr2"])
-name_pos = "Aug" + str(FLAGS["is_aug"])
-name_all = name_pre + "__" + name_mid + "__" + name_pos + "__"
+# name_pos = "Aug" + str(FLAGS["is_aug"])
+name_all = name_pre + "__" + name_mid + "__"
 print("save:", name_all)
 
 util.maybe_create_directory(tensorboard_dir)
 util.maybe_create_directory(audio_ckpt_dir)
+
+
+# current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+# train_log_dir = 'logs/gradient_tape/' + name_all + '/train'
+# test_log_dir = 'logs/gradient_tape/' + name_all + '/test'
+# train_summary_writer = tf.summary.create_file_writer(train_log_dir)
+# test_summary_writer = tf.summary.create_file_writer(test_log_dir)
 
 
 def model_summary():
@@ -112,7 +120,7 @@ def _create_data():
     """Create audio `train`, `test` and `val` records file."""
     tf.compat.v1.logging.info("Create records..")
     _check_vggish_ckpt_exists()
-    train, val, test = util.load_data(data_dir, FLAGS["is_aug"])
+    train, val, test = util.load_data(data_dir, samples_count=None)
     tf.compat.v1.logging.info("Dataset size: Train-{} Test-{} Val-{}".format(len(train), len(test), len(val)))
     return train, val, test
 
@@ -125,7 +133,7 @@ def _add_triaining_graph():
             num_units=FLAGS["num_units"],
             train_vgg=FLAGS["train_vgg"],
         )
-        tf.compat.v1.summary.histogram("logits", logits)
+        # tf.compat.v1.summary.histogram("logits", logits)
         # define training subgraph
         with tf.compat.v1.variable_scope("train"):
             labels = tf.compat.v1.placeholder(tf.float32, shape=[None, params.NUM_CLASSES], name="labels")
@@ -139,7 +147,7 @@ def _add_triaining_graph():
             )
             loss = tf.add(reg_loss2, cla_loss, name="loss_op")
 
-            tf.compat.v1.summary.scalar("loss", loss)
+            # tf.compat.v1.summary.scalar("loss", loss)
             # training
             global_step = tf.compat.v1.Variable(
                 0,
@@ -200,6 +208,10 @@ def break_training():
     return False
 
 
+# TensorBoard
+tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir="logs")
+
+
 def main(_):
     if break_training():
         return
@@ -219,7 +231,7 @@ def main(_):
 
         # op and tensors
         vgg_tensor = sess.graph.get_tensor_by_name(params.VGGISH_INPUT_TENSOR_NAME)
-        index_tensor = sess.graph.get_tensor_by_name("mymodel/index:0")
+        # index_tensor = sess.graph.get_tensor_by_name("mymodel/index:0")
         dropout_tensor = sess.graph.get_tensor_by_name("mymodel/dropout_rate:0")
         logit_tensor = sess.graph.get_tensor_by_name("mymodel/Output/prediction:0")
         labels_tensor = sess.graph.get_tensor_by_name("train/labels:0")
@@ -231,8 +243,8 @@ def main(_):
         reg_loss_tensor = sess.graph.get_tensor_by_name("train/reg_loss2:0")
         train_op = sess.graph.get_operation_by_name("train/train_op")
 
-        summary_op = tf.compat.v1.summary.merge_all()
-        summary_writer = tf.compat.v1.summary.FileWriter(tensorboard_dir, graph=sess.graph)
+        # summary_op = tf.compat.v1.summary.merge_all()
+        # summary_writer = tf.compat.v1.summary.FileWriter(tensorboard_dir, graph=sess.graph)
         saver = tf.compat.v1.train.Saver()
 
         init = tf.compat.v1.global_variables_initializer()
@@ -249,17 +261,21 @@ def main(_):
 
         # begin to train
         train_data, valid_data, test_data = _create_data()
+        rng = np.random.default_rng()
 
         logfile = open(os.path.join(audio_ckpt_dir, name_all + "_log.txt"), "w")
         logfile.write("INIT testing results:")
         logfile.write("\n")
 
+        # with tf.summary.create_file_writer(f"logs/{name_all}").as_default():
         # training and validation loop
         for epoch in range(FLAGS["epoch"]):
             # Break training if necessary
             if break_training():
                 break
 
+            # Shuffle train_data in each epoch
+            rng.shuffle(train_data, axis=0)
             if epoch == 0:
                 curr_step = 0
 
@@ -271,26 +287,28 @@ def main(_):
             loss_all = []
             regloss_all = []
             print("training samples:", len(train_data))
+
+            # with tf.summary.create_file_writer(f"logs/{name_all}").as_default():
             for sample in train_data:  # generate training batch
                 ##########################################################################################
                 ############################## SAMPLES TO SPECTOGRAM #####################################
                 ##########################################################################################
-                vgg_b, index, labels = util.get_input(sample)
-                [num_steps, lr1, lr2, logits, loss, summaries, _, clal, regl] = sess.run(
+                vgg_b, labels = util.get_input(sample)
+                [num_steps, lr1, lr2, logits, loss, _, clal, regl] = sess.run(
                     [
                         global_step_tensor,
                         lr1_tensor,
                         lr2_tensor,
                         logit_tensor,
                         loss_tensor,
-                        summary_op,
+                        # summary_op,
                         train_op,
                         cla_loss_tensor,
                         reg_loss_tensor,
                     ],
                     feed_dict={
                         vgg_tensor: vgg_b,  # Mel-spetrugram
-                        index_tensor: index,  # breath
+                        # index_tensor: index,  # breath
                         dropout_tensor: [[FLAGS["dropout_rate"]]],  # traning dropour rate
                         labels_tensor: [labels],
                     },
@@ -300,7 +318,7 @@ def main(_):
                 train_batch_losses.append(loss)
                 loss_all.append(clal)
                 regloss_all.append(regl)
-                summary_writer.add_summary(summaries, num_steps)
+                # summary_writer.add_summary(summaries, num_steps)
 
             if FLAGS["is_diff"]:
                 print("LEARNING RATE1:", lr1, "Learning RATE2:", lr2)
@@ -318,7 +336,17 @@ def main(_):
                 "cross-entropy loss: %g" % epoch_loss,
                 "regulation loss: %g" % epcoh_reg_loss,
             )
-            train_AUC, train_TPR, train_TNR, train_TPR_TNR_9 = util.get_metrics(probs_all, label_all)
+            f1_score, train_AUC, train_TPR, train_TNR, train_TPR_TNR_9 = util.get_metrics(probs_all, label_all)
+
+            with tf.summary.create_file_writer(f"logs/vgg1/train").as_default():
+                tf.summary.scalar('AUC', train_AUC, step=epoch)
+                tf.summary.scalar('TPR', train_TPR, step=epoch)
+                tf.summary.scalar('TPR', train_TNR, step=epoch)
+                tf.summary.scalar('f1-score', f1_score, step=epoch)
+                tf.summary.scalar('train_TPR_TNR_9', train_TPR_TNR_9, step=epoch)
+                tf.summary.scalar('train_epoch_loss', train_epoch_loss, step=epoch)
+                tf.summary.scalar('cross_entropy_loss', epoch_loss, step=epoch)
+                tf.summary.scalar('regulation_loss', epcoh_reg_loss, step=epoch)
 
             # train_auc = AUC
             logfile.write(
@@ -335,12 +363,12 @@ def main(_):
             loss_all = []
             regloss_all = []
             for sample in valid_data:
-                vgg_b, index, labels = util.get_input(sample)
+                vgg_b, labels = util.get_input(sample)
                 [logits, loss, clal, regl] = sess.run(
                     [logit_tensor, loss_tensor, cla_loss_tensor, reg_loss_tensor],
                     feed_dict={
                         vgg_tensor: vgg_b,
-                        index_tensor: index,
+                        # index_tensor: index,
                         dropout_tensor: [[1.0]],
                         labels_tensor: [labels],
                     },
@@ -361,8 +389,18 @@ def main(_):
                 "cross-entropy loss: %g" % epoch_loss,
                 "regulation loss: %g" % epcoh_reg_loss,
             )
-            valid_AUC, valid_TPR, valid_TNR, valid_TPR_TNR_9 = util.get_metrics(probs_all, label_all)
+            f1_score, valid_AUC, valid_TPR, valid_TNR, valid_TPR_TNR_9 = util.get_metrics(probs_all, label_all)
             # nni.report_intermediate_result(val_curr)
+
+            with tf.summary.create_file_writer(f"logs/vgg1/test").as_default():
+                tf.summary.scalar('AUC', valid_AUC, step=epoch)
+                tf.summary.scalar('TPR', valid_TPR, step=epoch)
+                tf.summary.scalar('TPR', valid_TNR, step=epoch)
+                tf.summary.scalar('f1-score', f1_score, step=epoch)
+                tf.summary.scalar('train_TPR_TNR_9', valid_TPR_TNR_9, step=epoch)
+                tf.summary.scalar('train_epoch_loss', val_loss, step=epoch)
+                tf.summary.scalar('cross_entropy_loss', epoch_loss, step=epoch)
+                tf.summary.scalar('regulation_loss', epcoh_reg_loss, step=epoch)
 
             # vad_auc = AUC
             logfile.write(
@@ -441,7 +479,7 @@ def main(_):
             #         epoch, FLAGS["epoch"], test_AUC, test_TPR, test_TNR, test_TPR_TNR_9
             #     )
             # )
-            logfile.write("\n")
+        logfile.write("\n")
         # nni.report_final_result(val_best)
         logfile.write("\nVal best: {}".format(val_best))
         logfile_results = open(os.path.join(audio_ckpt_dir, "results_log.txt"), "a")

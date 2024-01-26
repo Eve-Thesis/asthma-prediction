@@ -66,7 +66,7 @@ logfile = os.path.join(str(audio_ckpt_dir), f"{name_all}_log.txt")
 checkpoint_path = os.path.join(str(audio_ckpt_dir), f"{name_all}{params.AUDIO_CHECKPOINT_NAME}")
 util.maybe_create_directory(audio_ckpt_dir)
 
-# Parametry - grid search
+# Parameters
 lr_top = FLAGS['lr_top']  # Initial learning rate for classification layers
 lr_base = FLAGS['lr_base']  # Initial learning rate for fine-tuning base model
 decay_rate = FLAGS['lr_decay']
@@ -80,9 +80,7 @@ before_finetune_epochs = 5
 early_stop_patience = params.PATIENCE
 base_model_type = FLAGS['model_type']
 
-# Prepare the datasets signals
-train_set_signals, val_set_signals, test_set_signals = load_singals_datasets(samples_count=1500, ratios=(0.7, 0.2, 0.1))
-# Generate images with ResNet preprocessing
+# Additional parameters
 if base_model_type == 'resnet':
     base_model_t = tf.keras.applications.resnet.ResNet50
     preprocess_input = tf.keras.applications.resnet.preprocess_input  # caffe (RGB -> BRG, zero-center)
@@ -94,6 +92,8 @@ elif base_model_type == 'densenet':
 else:
     raise Exception("Invalid model")
 
+# Prepare the datasets signals
+train_set_signals, val_set_signals, test_set_signals = load_singals_datasets(samples_count=1500, ratios=(0.7, 0.2, 0.1))
 train_dataset = gen_images_dataset(train_set_signals, preprocess=preprocess_input, shape=(224, 224))
 val_dataset = gen_images_dataset(val_set_signals, preprocess=preprocess_input, shape=(224, 224))
 test_dataset = gen_images_dataset(test_set_signals, preprocess=preprocess_input, shape=(224, 224))
