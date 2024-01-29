@@ -44,7 +44,7 @@ IS_ADDDATA = False
 # Checkpoint,no need to change
 TENSORBOARD_DIR = "../data/tensorboard"  # Tensorboard
 AUDIO_CHECKPOINT_DIR = "../data/train"
-AUDIO_CHECKPOINT_NAME = "mymodel.ckpt"
+AUDIO_CHECKPOINT_NAME = "mymodel"
 
 # ResNet
 RESNET_CHECKPOINT_DIR = "../resnet"

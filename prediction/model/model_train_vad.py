@@ -16,6 +16,9 @@ import sys
 import numpy as np
 import tensorflow as tf
 import tf_slim as slim
+from sklearn import metrics
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 gpu_devices = tf.config.experimental.list_physical_devices('GPU')
 for device in gpu_devices:
@@ -48,7 +51,9 @@ parser.add_argument("--task", type=str, default=params.TASK, help="Name of the t
 parser.add_argument("--data_name", type=str, default=params.DATA_NAME, help="Original data path.")
 parser.add_argument("--is_aug", type=bool, default=False, help="Add data augmentation.")
 parser.add_argument("--restore_if_possible", type=bool, default=False, help="Restore variables.")
+parser.add_argument("--epoch_to_restore", type=int, default=False, help="Epoch of model weights in filename.")
 parser.add_argument("--epoch", type=int, default=100, help="Maximum epoch to train.")
+parser.add_argument("--epoch_to_test", type=int, default=False, help="Epoch in with model test on test data.")
 parser.add_argument(
     "--early_stop", type=str, default=params.EARLY_STOP, help="The indicator on validation set to stop training."
 )
@@ -231,7 +236,6 @@ def main(_):
 
         # op and tensors
         vgg_tensor = sess.graph.get_tensor_by_name(params.VGGISH_INPUT_TENSOR_NAME)
-        # index_tensor = sess.graph.get_tensor_by_name("mymodel/index:0")
         dropout_tensor = sess.graph.get_tensor_by_name("mymodel/dropout_rate:0")
         logit_tensor = sess.graph.get_tensor_by_name("mymodel/Output/prediction:0")
         labels_tensor = sess.graph.get_tensor_by_name("train/labels:0")
@@ -243,8 +247,6 @@ def main(_):
         reg_loss_tensor = sess.graph.get_tensor_by_name("train/reg_loss2:0")
         train_op = sess.graph.get_operation_by_name("train/train_op")
 
-        # summary_op = tf.compat.v1.summary.merge_all()
-        # summary_writer = tf.compat.v1.summary.FileWriter(tensorboard_dir, graph=sess.graph)
         saver = tf.compat.v1.train.Saver()
 
         init = tf.compat.v1.global_variables_initializer()
@@ -256,8 +258,16 @@ def main(_):
         model_summary()
 
         checkpoint_path = os.path.join(audio_ckpt_dir, name_all + params.AUDIO_CHECKPOINT_NAME)
-        if util.is_exists(checkpoint_path + ".meta") and FLAGS["restore_if_possible"]:
-            saver.restore(sess, checkpoint_path)
+        if FLAGS["restore_if_possible"]:
+            if FLAGS["epoch_to_restore"]:
+                # saver.save(sess, f"{checkpoint_path}EPOCH{epoch}.ckpt")
+                checkpoint_path_restore = f"{checkpoint_path}EPOCH{FLAGS['epoch_to_restore']}"
+                if util.is_exists(checkpoint_path_restore + ".ckpt.meta"):
+                    saver.restore(sess, checkpoint_path_restore)
+            else:
+                if util.is_exists(checkpoint_path + ".ckpt.meta"):
+                    checkpoint_path_restore = f"{checkpoint_path}.ckpt"
+                    saver.restore(sess, checkpoint_path_restore)
 
         # begin to train
         train_data, valid_data, test_data = _create_data()
@@ -288,11 +298,7 @@ def main(_):
             regloss_all = []
             print("training samples:", len(train_data))
 
-            # with tf.summary.create_file_writer(f"logs/{name_all}").as_default():
             for sample in train_data:  # generate training batch
-                ##########################################################################################
-                ############################## SAMPLES TO SPECTOGRAM #####################################
-                ##########################################################################################
                 vgg_b, labels = util.get_input(sample)
                 [num_steps, lr1, lr2, logits, loss, _, clal, regl] = sess.run(
                     [
@@ -301,14 +307,12 @@ def main(_):
                         lr2_tensor,
                         logit_tensor,
                         loss_tensor,
-                        # summary_op,
                         train_op,
                         cla_loss_tensor,
                         reg_loss_tensor,
                     ],
                     feed_dict={
                         vgg_tensor: vgg_b,  # Mel-spetrugram
-                        # index_tensor: index,  # breath
                         dropout_tensor: [[FLAGS["dropout_rate"]]],  # traning dropour rate
                         labels_tensor: [labels],
                     },
@@ -318,7 +322,6 @@ def main(_):
                 train_batch_losses.append(loss)
                 loss_all.append(clal)
                 regloss_all.append(regl)
-                # summary_writer.add_summary(summaries, num_steps)
 
             if FLAGS["is_diff"]:
                 print("LEARNING RATE1:", lr1, "Learning RATE2:", lr2)
@@ -336,22 +339,14 @@ def main(_):
                 "cross-entropy loss: %g" % epoch_loss,
                 "regulation loss: %g" % epcoh_reg_loss,
             )
-            f1_score, train_AUC, train_TPR, train_TNR, train_TPR_TNR_9 = util.get_metrics(probs_all, label_all)
+            f1_score, train_AUC, train_TPR, train_TNR, train_TPR_TNR_9, accuracy = util.get_metrics(probs_all,
+                                                                                                    label_all)
 
-            with tf.summary.create_file_writer(f"logs/vgg1/train").as_default():
-                tf.summary.scalar('AUC', train_AUC, step=epoch)
-                tf.summary.scalar('TPR', train_TPR, step=epoch)
-                tf.summary.scalar('TPR', train_TNR, step=epoch)
-                tf.summary.scalar('f1-score', f1_score, step=epoch)
-                tf.summary.scalar('train_TPR_TNR_9', train_TPR_TNR_9, step=epoch)
-                tf.summary.scalar('train_epoch_loss', train_epoch_loss, step=epoch)
-                tf.summary.scalar('cross_entropy_loss', epoch_loss, step=epoch)
-                tf.summary.scalar('regulation_loss', epcoh_reg_loss, step=epoch)
-
-            # train_auc = AUC
             logfile.write(
-                "Training - Epoch {}/{}: AUC:{}, TPR:{}, TNR:{}, TPR_TNR_9:{}".format(
-                    epoch, FLAGS["epoch"], train_AUC, train_TPR, train_TNR, train_TPR_TNR_9
+                "Training - Epoch {}/{}: AUC:{}, TPR:{}, TNR:{}, TPR_TNR_9:{}, Loss:{}, f1-score: {}, accuracy: {}"
+                .format(
+                    epoch, FLAGS["epoch"], train_AUC, train_TPR, train_TNR, train_TPR_TNR_9, train_epoch_loss, f1_score,
+                    accuracy
                 )
             )
             logfile.write("\n")
@@ -368,7 +363,6 @@ def main(_):
                     [logit_tensor, loss_tensor, cla_loss_tensor, reg_loss_tensor],
                     feed_dict={
                         vgg_tensor: vgg_b,
-                        # index_tensor: index,
                         dropout_tensor: [[1.0]],
                         labels_tensor: [labels],
                     },
@@ -389,96 +383,131 @@ def main(_):
                 "cross-entropy loss: %g" % epoch_loss,
                 "regulation loss: %g" % epcoh_reg_loss,
             )
-            f1_score, valid_AUC, valid_TPR, valid_TNR, valid_TPR_TNR_9 = util.get_metrics(probs_all, label_all)
-            # nni.report_intermediate_result(val_curr)
+            f1_score, valid_AUC, valid_TPR, valid_TNR, valid_TPR_TNR_9, accuracy = util.get_metrics(probs_all,
+                                                                                                    label_all)
 
-            with tf.summary.create_file_writer(f"logs/vgg1/test").as_default():
-                tf.summary.scalar('AUC', valid_AUC, step=epoch)
-                tf.summary.scalar('TPR', valid_TPR, step=epoch)
-                tf.summary.scalar('TPR', valid_TNR, step=epoch)
-                tf.summary.scalar('f1-score', f1_score, step=epoch)
-                tf.summary.scalar('train_TPR_TNR_9', valid_TPR_TNR_9, step=epoch)
-                tf.summary.scalar('train_epoch_loss', val_loss, step=epoch)
-                tf.summary.scalar('cross_entropy_loss', epoch_loss, step=epoch)
-                tf.summary.scalar('regulation_loss', epcoh_reg_loss, step=epoch)
+            if valid_AUC > val_best:
+                val_best = valid_AUC
 
-            # vad_auc = AUC
             logfile.write(
-                "Validation - Epoch {}/{}: AUC:{}, TPR:{}, TNR:{}, TPR_TNR_9:{}".format(
-                    epoch, FLAGS["epoch"], valid_AUC, valid_TPR, valid_TNR, valid_TPR_TNR_9
+                "Validation - Epoch {}/{}: AUC:{}, TPR:{}, TNR:{}, TPR_TNR_9:{}, Loss:{}, f1-score: {}, accuracy: {}"
+                .format(
+                    epoch, FLAGS["epoch"], valid_AUC, valid_TPR, valid_TNR, valid_TPR_TNR_9, val_loss, f1_score,
+                    accuracy
                 )
             )
             logfile.write("\n")
 
             # saver.save(sess, checkpoint_path_epoch)
 
-            if FLAGS["early_stop"] == "LOSS":
-                if val_loss <= val_best:
-                    # save the model weights to disk:
-                    saver.save(sess, checkpoint_path)
-                    print("checkpoint saved in file: %s" % checkpoint_path)
-                    curr_step = 0
-                    val_best = val_loss
-                else:
-                    curr_step += 1
-                    if curr_step == params.PATIENCE:
-                        print("Early Sopp!(Train)")
-                        logfile.write("Min Val Loss, checkpoint stored!\n")
-                        break
-
-            elif FLAGS["early_stop"] == "AUC":
-                val_curr = 0.5 * (valid_TPR + valid_TNR)
-
-                if val_best <= val_curr:
-                    if valid_TPR > 0.5 and valid_TNR > 0.5:
-                        curr_step = 0
-                        if val_best < val_curr:
-                            # Save the model weights to disk:
-                            saver.save(sess, checkpoint_path)
-                            print("checkpoint saved in file: %s" % checkpoint_path)
-                            val_best = val_curr
-                    else:
-                        curr_step += 1
-                        if val_best < val_curr:
-                            curr_step = 0
-                            val_best = val_curr
-                else:
-                    curr_step += 1
-
-                if curr_step == params.PATIENCE:
-                    print("Early Stop! (Train)")
-                    logfile.write("Max Val AUC, checkpoint stored!\n")
-                    break
+            # if FLAGS["early_stop"] == "LOSS":
+            #     if val_loss <= val_best:
+            #         # save the model weights to disk:
+            #         saver.save(sess, checkpoint_path)
+            #         print("checkpoint saved in file: %s" % checkpoint_path)
+            #         curr_step = 0
+            #         val_best = val_loss
+            #     else:
+            #         curr_step += 1
+            #         if curr_step == params.PATIENCE:
+            #             print("Early Sopp!(Train)")
+            #             logfile.write("Min Val Loss, checkpoint stored!\n")
+            #             break
+            #
+            # elif FLAGS["early_stop"] == "AUC":
+            #     val_curr = 0.5 * (valid_TPR + valid_TNR)
+            #
+            #     if val_best <= val_curr:
+            #         if valid_TPR > 0.5 and valid_TNR > 0.5:
+            #             curr_step = 0
+            #             # Save the model weights to disk:
+            #             saver.save(sess, checkpoint_path)
+            #             print("checkpoint saved in file: %s" % checkpoint_path)
+            #             val_best = val_curr
+            #         else:
+            #             curr_step += 1
+            #             if val_best < val_curr:
+            #                 curr_step = 0
+            #                 val_best = val_curr
+            #     else:
+            #         curr_step += 1
+            #
+            #     if curr_step == params.PATIENCE:
+            #         print("Early Stop! (Train)")
+            #         logfile.write("Max Val AUC, checkpoint stored!\n")
+            #         break
 
             # if epoch == 5:
             # print('start fine tune!')
             # train_data = train_data + valid_data
 
             # test loop
-            # test_batch_losses = []
-            # probs_all = []
-            # label_all = []
-            # for sample in test_data:
-            #     vgg_b, index, labels = util.get_input(sample)
-            #     [logits, loss, _, _] = sess.run(
-            #         [logit_tensor, loss_tensor, cla_loss_tensor, reg_loss_tensor],
-            #         feed_dict={
-            #             vgg_tensor: vgg_b,
-            #             index_tensor: index,
-            #             dropout_tensor: [[1.0]],
-            #             labels_tensor: [labels],
-            #         },
-            #     )
-            #     test_batch_losses.append(loss)
-            #     probs_all.append(logits)
-            #     label_all.append(labels[1])
-            #
-            # test_AUC, test_TPR, test_TNR, test_TPR_TNR_9 = util.get_metrics(probs_all, label_all)
-            # logfile.write(
-            #     "Test - Epoch {}/{}: AUC:{}, TPR:{}, TNR:{}, TPR_TNR_9:{}".format(
-            #         epoch, FLAGS["epoch"], test_AUC, test_TPR, test_TNR, test_TPR_TNR_9
-            #     )
-            # )
+            if epoch == FLAGS["epoch_to_test"]:
+                test_batch_losses = []
+                probs_all = []
+                label_all = []
+                for sample in test_data:
+                    vgg_b, labels = util.get_input(sample)
+                    [logits, loss, _, _] = sess.run(
+                        [logit_tensor, loss_tensor, cla_loss_tensor, reg_loss_tensor],
+                        feed_dict={
+                            vgg_tensor: vgg_b,
+                            dropout_tensor: [[1.0]],
+                            labels_tensor: [labels],
+                        },
+                    )
+                    test_batch_losses.append(loss)
+                    probs_all.append(logits)
+                    label_all.append(labels[1])
+
+                f1_score, test_AUC, test_TPR, test_TNR, test_TPR_TNR_9, accuracy = util.get_metrics(probs_all,
+                                                                                                    label_all)
+
+                logfile.write(
+                    "Test - Epoch {}/{}: AUC:{}, TPR:{}, TNR:{}, TPR_TNR_9:{}, f1-score: {}, accuracy: {}"
+                    .format(
+                        epoch, FLAGS["epoch"], test_AUC, test_TPR, test_TNR, test_TPR_TNR_9, f1_score, accuracy
+                    )
+                )
+                logfile.write("\n")
+
+                label = util.squezze(label_all)
+                probs = util.squezze(probs_all)
+                predicted = util.get_predicted(probs, where_0=0)
+                predicted = util.squezze(predicted)
+                TN, FP, FN, TP = metrics.confusion_matrix(label, predicted).ravel()
+                fpr_all, tpr_all, thresholds = metrics.roc_curve(label, probs[:, 1])
+                # os.path.join(audio_ckpt_dir, name_all + params.AUDIO_CHECKPOINT_NAME)
+                logfile_matrix = open(f"{audio_ckpt_dir}/vgg_matrix_confusion.txt", "w")
+                logfile_matrix.write(f"TN: {TN}, FP: {FP}, FN: {FN}, TP: {TP}")
+                logfile_matrix.close()
+                logfile_roc = open(f"{audio_ckpt_dir}/vgg_roc_curve.txt", "w")
+                roc = "\n".join(
+                    [f'{fpr};{tpr};{threshold}' for fpr, tpr, threshold in zip(fpr_all, tpr_all, thresholds)])
+                logfile_roc.write("fpr; tpr; threshold\n")
+                logfile_roc.write(roc)
+                logfile_roc.close()
+
+                # sns.set(style="whitegrid")
+                # # ROC plot
+                # plt.figure(figsize=(8, 8))
+                # plt.plot(fpr_all, tpr_all, color='darkorange', lw=2, label='ROC curve (AUC = {:.2f})'.format(test_AUC))
+                # plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--', label='Random Guessing')
+                # plt.scatter(fpr_all, tpr_all, c=thresholds, cmap='viridis', label='Threshold', s=100,
+                #             edgecolors='black')
+                # plt.colorbar(label='Threshold')
+                # plt.xlabel('False Positive Rate (FPR)')
+                # plt.ylabel('True Positive Rate (TPR)')
+                # plt.title('Receiver Operating Characteristic (ROC) Curve')
+                # plt.legend(loc='lower right')
+                # plt.show()
+
+                # Save the model weights to disk:
+                checkpoint_file_path = f"{checkpoint_path}EPOCH{epoch}.ckpt"
+                saver.save(sess, checkpoint_file_path)
+                print(f"checkpoint saved in file: {checkpoint_file_path} \n on Epoch: {epoch}")
+                # val_best = val_curr
+
         logfile.write("\n")
         # nni.report_final_result(val_best)
         logfile.write("\nVal best: {}".format(val_best))

@@ -33,6 +33,7 @@ parser.add_argument("--data_name", type=str, default=params.DATA_NAME, help="Ori
 parser.add_argument("--is_aug", type=bool, default=False, help="Add data augmentation.")
 # parser.add_argument("--restore_if_possible", type=bool, default=False, help="Restore variables.")
 parser.add_argument("--epoch", type=int, default=params.NUM_EPOCHS, help="Maximum epoch to train.")
+parser.add_argument("--test_epoch", type=int, default=None, help="Maximum epoch to train.")
 parser.add_argument("--early_stop", type=str, default=params.EARLY_STOP,
                     help="The indicator on validation set to stop training.")
 parser.add_argument("--is_diff", type=bool, default=True, help="Whether to use differential learing rate.")
@@ -76,6 +77,7 @@ dropout = FLAGS['dropout_rate']
 num_finetune_layers = FLAGS['trained_layers']  # Number of top layers to fine-tune
 num_units = FLAGS['num_units']  # Number of units in the additional dense layer
 max_epochs = FLAGS['epoch']
+test_epoch = FLAGS['test_epoch']
 before_finetune_epochs = 5
 early_stop_patience = params.PATIENCE
 base_model_type = FLAGS['model_type']
@@ -93,7 +95,7 @@ else:
     raise Exception("Invalid model")
 
 # Prepare the datasets signals
-train_set_signals, val_set_signals, test_set_signals = load_singals_datasets(samples_count=1500, ratios=(0.7, 0.2, 0.1))
+train_set_signals, val_set_signals, test_set_signals = load_singals_datasets(samples_count=None, ratios=(0.7, 0.2, 0.1))
 train_dataset = gen_images_dataset(train_set_signals, preprocess=preprocess_input, shape=(224, 224))
 val_dataset = gen_images_dataset(val_set_signals, preprocess=preprocess_input, shape=(224, 224))
 test_dataset = gen_images_dataset(test_set_signals, preprocess=preprocess_input, shape=(224, 224))
@@ -138,7 +140,7 @@ logger.info(f'Model layers: {len(model.layers)}')
 logger.info(f'Base model layers: {len(base_model.layers)}')
 logger.info(f'Model trainable variables - before fine-tune: {len(model.trainable_variables)}')
 logger.info(f'Base model trainable variables - before fine-tune: {len(base_model.trainable_variables)}')
-train(model, train_dataset, val_dataset, epochs=before_finetune_epochs, metrics_file=logfile,
+train(model, train_dataset, val_dataset, test_data=test_dataset, epochs=before_finetune_epochs, metrics_file=logfile,
       save_checkpoint_file=checkpoint_path)
 
 # Unfreeze the base_model. Note that it keeps running in inference mode
@@ -161,8 +163,8 @@ model.compile(
 model.summary(show_trainable=True)
 
 logger.info("Fitting the end-to-end model")
-train(model, train_dataset, val_dataset, epochs=max_epochs, start_epoch=before_finetune_epochs, metrics_file=logfile,
-      early_stopping=True,
-      save_checkpoint_file=checkpoint_path)
+
+train(model, train_dataset, val_dataset, test_data=test_dataset, epochs=max_epochs, start_epoch=before_finetune_epochs,
+      metrics_file=logfile, early_stopping=False, test_epoch=test_epoch, save_checkpoint_file=checkpoint_path)
 
 logger.info("END OF TRAINING")

@@ -125,10 +125,10 @@ def load_data(data_path, samples_count=None, ratios=(0.7, 0.2, 0.1)):
     train_class_cnt = val_class_cnt = test_class_cnt = len(data)
     if samples_count:
         train_class_cnt, val_class_cnt, test_class_cnt = sets_samples_counts(samples_count, ratios=ratios)
-        train_class_cnt, val_class_cnt, test_class_cnt = train_class_cnt//2, val_class_cnt//2, test_class_cnt//2
+        train_class_cnt, val_class_cnt, test_class_cnt = train_class_cnt // 2, val_class_cnt // 2, test_class_cnt // 2
     elif params.SAMPLES_COUNT:
         train_class_cnt, val_class_cnt, test_class_cnt = sets_samples_counts(params.SAMPLES_COUNT, ratios=ratios)
-        train_class_cnt, val_class_cnt, test_class_cnt = train_class_cnt//2, val_class_cnt//2, test_class_cnt//2
+        train_class_cnt, val_class_cnt, test_class_cnt = train_class_cnt // 2, val_class_cnt // 2, test_class_cnt // 2
 
     train_task = []
     asthma_cnt = 0
@@ -302,6 +302,21 @@ def get_input(sample):
     return vgg_b, labels
 
 
+def squezze(array_2d):
+    array = np.array(array_2d)
+    return np.squeeze(array)
+
+
+def get_predicted(probabilities, where_0=0):
+    predicted = []
+    for i in range(len(probabilities)):
+        if probabilities[i][where_0] > 0.5:
+            predicted.append(0)
+        else:
+            predicted.append(1)
+    return predicted
+
+
 def get_metrics(probs, labels):
     """calculate metrics.
     :param probs: list
@@ -310,24 +325,23 @@ def get_metrics(probs, labels):
     :type labels: [int]
     :return: metrics
     """
-    probs = np.array(probs)
-    probs = np.squeeze(probs)
+    probs = squezze(probs)
 
-    predicted = []
-    for i in range(len(probs)):
-        if probs[i][0] > 0.5:
-            predicted.append(0)
-        else:
-            predicted.append(1)
+    # predicted = []
+    # for i in range(len(probs)):
+    #     if probs[i][0] > 0.5:
+    #         predicted.append(0)
+    #     else:
+    #         predicted.append(1)
+    predicted = get_predicted(probs, where_0=0)
+    label = squezze(labels)
+    # label = np.squeeze(label)
 
-    label = np.array(labels)
-    label = np.squeeze(label)
-
-    predicted = np.array(predicted)
-    predicted = np.squeeze(predicted)
+    predicted = squezze(predicted)
+    # predicted = np.squeeze(predicted)
 
     # pre = metrics.precision_score(label, predicted)
-    # acc = metrics.accuracy_score(label, predicted)
+    acc = metrics.accuracy_score(label, predicted)
     auc = metrics.roc_auc_score(label, probs[:, 1])
     precision, recall, _ = metrics.precision_recall_curve(label, probs[:, 1])
     # rec = metrics.recall_score(label, predicted)
@@ -351,7 +365,7 @@ def get_metrics(probs, labels):
         "AUC:"
         + "{:.2f}".format(auc)
         + " f1-score_0.5:"
-        + "{:.2f}".format(f1_score[len(f1_score)//2])
+        + "{:.2f}".format(f1_score[len(f1_score) // 2])
         + " Sensitivity:"
         + "{:.2f}".format(TPR)
         + " Specificity:"
@@ -360,7 +374,7 @@ def get_metrics(probs, labels):
         + "{:.2f}".format(1 - fpr[index])
     )
 
-    return f1_score[len(f1_score)//2], auc, TPR, TNR, 1 - fpr[index]
+    return f1_score[len(f1_score) // 2], auc, TPR, TNR, 1 - fpr[index], acc
 
 
 def get_metrics_t(probs, label):
@@ -438,6 +452,12 @@ def is_exists(path):
         print("Not exists: {}".format(path))
         return False
     return True
+
+
+def is_checkpoint_exists(path, epoch, extend):
+    """Check checkpoint file exists."""
+    path_file = f"{path}{epoch}{extend}"
+    return is_exists(path_file)
 
 
 def maybe_create_directory(dirname):

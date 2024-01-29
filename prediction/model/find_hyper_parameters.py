@@ -56,14 +56,21 @@ import subprocess
 #                 {'lr1': 1e-05, 'lr2': 1e-4, 'lr_decay': 0.8, 'reg_l2': 1e-06, 'dropout_rate': 0.6, 'num_units': 40,
 #                  'trained_layers': 12}]
 
-combinations = [{'lr1': 1e-05, 'lr2': 1e-04, 'lr_decay': 0.8, 'reg_l2': 1e-06, 'dropout_rate': 0.5, 'num_units': 30,
+# combinations = [{'lr1': 1e-05, 'lr2': 1e-04, 'lr_decay': 0.8, 'reg_l2': 1e-06, 'dropout_rate': 0.5, 'num_units': 30,
+#                  'trained_layers': 12},
+#                 {'lr1': 1e-05, 'lr2': 1e-04, 'lr_decay': 0.8, 'reg_l2': 1e-06, 'dropout_rate': 0.5, 'num_units': 30,
+#                  'trained_layers': 8},
+#                 {'lr1': 1e-05, 'lr2': 1e-04, 'lr_decay': 0.8, 'reg_l2': 1e-05, 'dropout_rate': 0.5, 'num_units': 30,
+#                  'trained_layers': 10},
+#                 {'lr1': 1e-05, 'lr2': 1e-04, 'lr_decay': 0.8, 'reg_l2': 1e-04, 'dropout_rate': 0.5, 'num_units': 30,
+#                  'trained_layers': 10}]
+
+combinations = [{'lr1': 1e-05, 'lr2': 1e-04, 'lr_decay': 0.8, 'reg_l2': 1e-03, 'dropout_rate': 0.5, 'num_units': 30,
                  'trained_layers': 12},
-                {'lr1': 1e-05, 'lr2': 1e-04, 'lr_decay': 0.8, 'reg_l2': 1e-06, 'dropout_rate': 0.5, 'num_units': 30,
-                 'trained_layers': 8},
-                {'lr1': 1e-05, 'lr2': 1e-04, 'lr_decay': 0.8, 'reg_l2': 1e-05, 'dropout_rate': 0.5, 'num_units': 30,
-                 'trained_layers': 10},
-                {'lr1': 1e-05, 'lr2': 1e-04, 'lr_decay': 0.8, 'reg_l2': 1e-04, 'dropout_rate': 0.5, 'num_units': 30,
-                 'trained_layers': 10}]
+                {'lr1': 1e-05, 'lr2': 1e-04, 'lr_decay': 0.8, 'reg_l2': 1e-03, 'dropout_rate': 0.5, 'num_units': 20,
+                 'trained_layers': 12},  # Units
+                {'lr1': 1e-05, 'lr2': 1e-04, 'lr_decay': 0.8, 'reg_l2': 1e-03, 'dropout_rate': 0.5, 'num_units': 20,
+                 'trained_layers': 8}]  # Layers
 
 for comb in combinations:
     command = ["python", "model_train_vad.py",
